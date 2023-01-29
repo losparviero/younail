@@ -7,6 +7,17 @@ const { URL } = require ("url");
 
 const bot = new Bot(process.env.BOT_TOKEN);
 
+// Response
+
+async function responseTime(ctx, next) {
+  const before = Date.now();
+  await next();
+  const after = Date.now();
+  console.log(`Response time: ${after - before} ms`);
+}
+
+bot.use(responseTime);
+
 // Commands
 
 bot.command("start", async (ctx) => {
