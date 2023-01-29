@@ -1,6 +1,5 @@
 require('dotenv').config();
-const { Bot, session, GrammyError, HttpError, InputFile } = require("grammy");
-const { run, sequentialize } = require("@grammyjs/runner");
+const { Bot, GrammyError, HttpError, InputFile } = require("grammy");
 const youtubeRegex = new RegExp(/^(http(s)?:\/\/)?((w){3}.)?youtu(be|.be)?(\.com)?\/.+|^(www\.)?youtu\.be\/.+/);
 const { URL } = require ("url");
 
@@ -8,22 +7,13 @@ const { URL } = require ("url");
 
 const bot = new Bot(process.env.BOT_TOKEN);
 
-// Concurrency
-
-function getSessionKey(ctx) {
-  return ctx.chat?.id.toString(); }
-
-bot.use(sequentialize(getSessionKey));
-bot.use(session({ getSessionKey }));
-
 // Commands
 
-bot.command("start", (ctx) => {
-    ctx.reply("*Welcome!* ✨ Send a YouTube link to get the thumbnail.", { parse_mode: "Markdown" } );
-    console.log("New user added:");
-    console.log(ctx.from);
+bot.command("start", async (ctx) => {
+    await ctx.reply("*Welcome!* ✨ Send a YouTube link to get the thumbnail.", { parse_mode: "Markdown" } );
+    console.log("New user added:", ctx.from);
   });
-bot.command("help", (ctx) => ctx.reply("*@anzubo Project.* \n\nThis bot uses the predictable URLs for thumbnails YouTube provides. It may break and stop working if YouTube decides to change this pattern. It's designed to send the highest quality thumbnail available.", { parse_mode: "Markdown" } ));
+bot.command("help", async (ctx) => await ctx.reply("*@anzubo Project.*\n\nThis bot uses the predictable URLs for thumbnails YouTube provides. It may break and stop working if YouTube decides to change this pattern.", { parse_mode: "Markdown" } ));
 
 // Messages
 
@@ -33,8 +23,8 @@ bot
     // Logging
 
     if (ctx.from.last_name === undefined) {
-      console.log('from:', ctx.from.first_name, '(@' + ctx.from.username + ')', 'ID:', ctx.from.id); }
-    else { console.log('from:', ctx.from.first_name, ctx.from.last_name, '(@' + ctx.from.username + ')', 'ID:', ctx.from.id); }
+      console.log('From:', ctx.from.first_name, '(@' + ctx.from.username + ')', 'ID:', ctx.from.id); }
+    else { console.log('From:', ctx.from.first_name, ctx.from.last_name, '(@' + ctx.from.username + ')', 'ID:', ctx.from.id); }
     console.log("Message:", ctx.msg.text);
 
     // Logic
@@ -71,7 +61,7 @@ bot.catch((err) => {
   }
 });
 
-// Run it concurrently
+// Run
 
 console.log('Bot running. Please keep this window open or use a startup manager like PM2 to setup persistent execution and store logs.');
-run(bot);
+bot.start();
