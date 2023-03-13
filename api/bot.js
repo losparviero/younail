@@ -1,14 +1,9 @@
 require("dotenv").config();
-const { Bot, webhookCallback, InputFile } = require("grammy");
+const { Bot, webhookCallback, GrammyError, HttpError } = require("grammy");
+const grabLink = require("youtube-thumbnail-grabber");
 const youtubeRegex = new RegExp(
   /^(http(s)?:\/\/)?((w){3}.)?youtu(be|.be)?(\.com)?\/.+|^(www\.)?youtu\.be\/.+/
 );
-const { URL } = require("url");
-
-// DB
-
-const mysql = require("mysql2");
-const connection = mysql.createConnection(process.env.DATABASE_URL);
 
 // Bot
 
@@ -28,110 +23,117 @@ bot.use(responseTime);
 // Commands
 
 bot.command("start", async (ctx) => {
+  if (!ctx.chat.type == "private") {
+    await bot.api.sendMessage(
+      ctx.chat.id,
+      "*Channels and groups are not supported presently.*",
+      { parse_mode: "Markdown" }
+    );
+    return;
+  }
+
   await ctx
-    .reply("*Welcome!* ✨ Send a YouTube link to get the thumbnail.", {
+    .reply("*Welcome!* ✨\n_Send a YouTube link to get the thumbnail._", {
       parse_mode: "Markdown",
     })
-    .then(() => {
-      connection.query(
-        `
-  SELECT * FROM users WHERE userid = ?
-`,
-        [ctx.from.id],
-        (error, results) => {
-          if (error) throw error;
-          if (results.length === 0) {
-            connection.query(
-              `
-      INSERT INTO users (userid, username, firstName, lastName, firstSeen)
-      VALUES (?, ?, ?, ?, NOW())
-    `,
-              [
-                ctx.from.id,
-                ctx.from.username,
-                ctx.from.first_name,
-                ctx.from.last_name,
-              ],
-              (error, results) => {
-                if (error) throw error;
-                console.log("New user added:", ctx.from);
-              }
-            );
-          } else {
-            console.log("User exists in database.", ctx.from.id);
-          }
-        }
-      );
-    })
-    .catch((error) => console.error(error));
+    .then(console.log("New user added:\n", ctx.from));
 });
 
 bot.command("help", async (ctx) => {
   await ctx
     .reply(
-      "*@anzubo Project.*\n\nThis bot uses the predictable URLs for thumbnails YouTube provides. It may break and stop working if YouTube decides to change this pattern.",
+      "*@anzubo Project.*\n\n_This bot gets thumbnails for YouTube videos.\nSend a link to try it out!_",
       { parse_mode: "Markdown" }
     )
-    .catch((error) => console.error(error));
+    .then(console.log("Help command sent to", ctx.chat.id));
 });
 
 // Messages
 
-bot.on("msg", async (ctx) => {
+bot.on("message", async (ctx) => {
   // Logging
 
-  if (ctx.from.last_name === undefined) {
-    console.log(
-      "From:",
-      ctx.from.first_name,
-      "(@" + ctx.from.username + ")",
-      "ID:",
-      ctx.from.id
-    );
-  } else {
-    console.log(
-      "From:",
-      ctx.from.first_name,
-      ctx.from.last_name,
-      "(@" + ctx.from.username + ")",
-      "ID:",
-      ctx.from.id
-    );
-  }
-  console.log("Message:", ctx.msg.text);
+  const from = ctx.from;
+  const name =
+    from.last_name === undefined
+      ? from.first_name
+      : `${from.first_name} ${from.last_name}`;
+  console.log(
+    `From: ${name} (@${from.username}) ID: ${from.id}\nMessage: ${ctx.message.text}`
+  );
 
   // Logic
 
-  if (!youtubeRegex.test(ctx.msg.text)) {
-    await ctx
-      .reply("Send a valid YouTube link!", {
-        reply_to_message_id: ctx.msg.message_id,
-      })
-      .catch((error) => console.error(error));
-  } else {
-    let message = ctx.message.text;
-    let match = message.match(
-      /^(http(s)?:\/\/)?((w){3}.)?youtu(be|.be)?(\.com)?\/.+|^(www\.)?youtu\.be\/.+/
-    );
-    let link = match[0];
-    if (link.includes(".be/")) {
-      let vid = link.split(".be/")[1];
-      let download_link =
-        "https://img.youtube.com/vi/" + vid + "/maxresdefault.jpg";
-      await ctx
-        .replyWithPhoto(new InputFile(new URL(download_link)))
-        .catch((error) => console.error(error));
+  if (!youtubeRegex.test(ctx.message.text)) {
+    await ctx.reply("*Send a valid YouTube link.*", {
+      parse_mode: "Markdown",
+      reply_to_message_id: ctx.message.message_id,
+    });
+    return;
+  }
+
+  try {
+    async function getLink(ytUrl) {
+      const thumbnailLink = grabLink(ytUrl, "max");
+      await ctx.replyWithPhoto(thumbnailLink, {
+        reply_to_message_id: ctx.message.message_id,
+      });
+    }
+    await getLink(ctx.message.text);
+  } catch (error) {
+    if (error instanceof GrammyError) {
+      if (error.message.includes("Forbidden: bot was blocked by the user")) {
+        console.log("Bot was blocked by the user");
+      } else if (error.message.includes("Call to 'sendPhoto' failed!")) {
+        console.log("Error sending message: ", error);
+        await ctx.reply(`*Error contacting Telegram.*`, {
+          parse_mode: "Markdown",
+          reply_to_message_id: ctx.message.message_id,
+        });
+      } else {
+        await ctx.reply(`*An error occurred: ${error.message}*`, {
+          parse_mode: "Markdown",
+          reply_to_message_id: ctx.message.message_id,
+        });
+      }
+      console.log(`Error sending message: ${error.message}`);
+      return;
     } else {
-      let vid = link.split("/watch?v=")[1];
-      let download_link =
-        "https://img.youtube.com/vi/" + vid + "/maxresdefault.jpg";
-      await ctx
-        .replyWithPhoto(new InputFile(new URL(download_link)))
-        .catch((error) => console.error(error));
+      console.log(`An error occured:`, error);
+      await ctx.reply(`*An error occurred.*\n_Error: ${error.message}_`, {
+        parse_mode: "Markdown",
+        reply_to_message_id: ctx.message.message_id,
+      });
+      return;
     }
   }
 });
 
-// Function
+// Error
+
+bot.catch((err) => {
+  const ctx = err.ctx;
+  console.error(
+    "Error while handling update",
+    ctx.update.update_id,
+    "\nQuery:",
+    ctx.msg.text
+  );
+  const e = err.error;
+  if (e instanceof GrammyError) {
+    console.error("Error in request:", e);
+    if (e.description === "Forbidden: bot was blocked by the user") {
+      console.log("Bot was blocked by the user");
+    } else {
+      ctx.reply("An error occurred");
+    }
+  } else if (e instanceof HttpError) {
+    console.error("Could not contact Telegram:", e);
+  } else {
+    console.error("Unknown error:", e);
+  }
+});
+
+// Run
 
 export default webhookCallback(bot, "http");
