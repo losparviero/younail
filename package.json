@@ -1,6 +1,7 @@
 {
   "dependencies": {
     "dotenv": "^16.0.3",
-    "grammy": "^1.13.0"
+    "grammy": "^1.13.0",
+    "youtube-thumbnail-grabber": "^1.0.2"
   }
 }
