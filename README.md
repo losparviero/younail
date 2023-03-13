@@ -1,20 +1,17 @@
 # YouTube Thumbnail Downloader Telegram Bot
 
-Get YouTube video thumbnails easily using Telegram!
+Get YouTube video thumbnails in Telegram!
 
 <br>
 
 ### Install
 
 1. Clone git repo.
-2. Run ```npm i``` in project folder. This will install the required dependencies.
-3. Populate .env file with bot token.
-
-#### Bot token can be obtained from @BotFather.
-
+2. Run ```npm install``` in project folder.
+3. Rename example.env to .env and provide bot token.
 4. Run ```node bot``` to start the bot.
 
-#### It's advisable to run the bot using PM2 or any startup manager for persistent execution, as this ensures you won't have to have the terminal open. You can set up auto-start as well. Or pass a cron job.
+#### It's advisable to run the bot using PM2 or any startup manager for persistent execution.
 
 <br>
 
@@ -28,7 +25,7 @@ Get YouTube video thumbnails easily using Telegram!
 
 ### Mechanism
 
-The bot relies on YouTube thumbnail URL presets. Which means there's no need for a lib or API.
+The bot uses the youtube-thumbnail-grabber lib.
 
 <br>
 
